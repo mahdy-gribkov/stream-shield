@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  windows-build:
+    name: Windows Build (.NET)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore src/StreamShield/StreamShield.csproj
+          dotnet restore tests/StreamShield.Tests/StreamShield.Tests.csproj
+          dotnet restore tests/StreamShield.E2E/StreamShield.E2E.csproj
+
+      - name: Build
+        run: |
+          dotnet build src/StreamShield/StreamShield.csproj --configuration Release --no-restore
+          dotnet build tests/StreamShield.Tests/StreamShield.Tests.csproj --configuration Release --no-restore
+          dotnet build tests/StreamShield.E2E/StreamShield.E2E.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: |
+          dotnet test tests/StreamShield.Tests/StreamShield.Tests.csproj --configuration Release --no-build --verbosity normal
+          dotnet test tests/StreamShield.E2E/StreamShield.E2E.csproj --configuration Release --no-build --verbosity normal
+
+  extension-lint:
+    name: Extension Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest.json exists
+        run: |
+          if [ ! -f extension/manifest.json ]; then
+            echo "ERROR: extension/manifest.json not found"
+            exit 1
+          fi
+
+      - name: Validate manifest.json is valid JSON
+        run: python3 -c "import json; json.load(open('extension/manifest.json')); print('manifest.json is valid JSON')"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate JS syntax
+        run: |
+          node --check extension/content.js
+          node --check extension/background.js
+          node --check extension/popup.js
+
+  linux-lint:
+    name: Linux Lint (Ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint linux/
+        run: |
+          if [ -d linux/ ]; then
+            ruff check linux/
+          else
+            echo "linux/ directory not found, skipping lint."
+          fi

@@ -1,0 +1,768 @@
+# StreamShield Architecture
+# The first tool that auto-detects sensitive input fields
+# and hides them from screen capture in real-time.
+
+vars: {
+  # Brand colors
+  amber: "#d4943a"
+  dark-bg: "#0c0b0e"
+  card-bg: "#1a1a2e"
+  green: "#059669"
+  red: "#e94560"
+  purple: "#8b5cf6"
+  blue: "#4a90d9"
+  white: "#e8e8e8"
+  muted: "#888888"
+}
+
+# =========================================================================
+# Top-level: What the user sees vs what capture sees
+# =========================================================================
+
+title: |md
+  # StreamShield Architecture
+  Auto-detect sensitive fields. Hide from capture. Show to user.
+| {
+  near: top-center
+  style: {
+    font-size: 28
+    font-color: ${amber}
+    bold: true
+  }
+}
+
+# =========================================================================
+# Windows App Pipeline
+# =========================================================================
+
+windows: Windows App (.NET 10 / WinForms) {
+  style: {
+    fill: ${dark-bg}
+    stroke: ${amber}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${white}
+    font-size: 20
+    bold: true
+  }
+
+  # --- Detection Layer ---
+
+  detection: Detection Layer {
+    style: {
+      fill: "#151520"
+      stroke: ${blue}
+      border-radius: 8
+      font-color: ${blue}
+      font-size: 16
+    }
+
+    hook: WinEvent Hook {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${blue}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    debounce: 50ms Debounce {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${muted}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    uia: UIA GetFocusedElement {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${blue}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    detector: SensitivityDetector {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${amber}
+        font-color: ${amber}
+        font-size: 14
+        bold: true
+      }
+    }
+
+    patterns: SensitivityPatterns {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${purple}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    hook -> debounce: EVENT_OBJECT_FOCUS {
+      style: {
+        stroke: ${blue}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    debounce -> uia: timer tick {
+      style: {
+        stroke: ${blue}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    bounds: Bounds Validation {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${muted}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    classname: ClassName Filter {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${red}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    ispassword: IsPassword Check {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${green}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    uia -> bounds: AutomationElement {
+      style: {
+        stroke: ${amber}
+        stroke-width: 2
+        animated: true
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    bounds -> classname: valid bounds {
+      style: {
+        stroke: ${muted}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    classname -> ispassword: not OmniboxViewViews {
+      style: {
+        stroke: ${red}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    classname.tooltip: |md
+      Excludes browser address bar:
+      OmniboxViewViews (Chrome)
+      Chrome_OmniboxView (Edge)
+    |
+
+    ispassword -> detector: IsPassword or keyword {
+      style: {
+        stroke: ${green}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    detector -> patterns: Name, AutomationId, LabeledBy, HelpText {
+      style: {
+        stroke: ${purple}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+  }
+
+  # --- Tracking Layer ---
+
+  tracker: FieldTracker {
+    style: {
+      fill: "#151520"
+      stroke: ${green}
+      border-radius: 8
+      font-color: ${green}
+      font-size: 16
+    }
+
+    track: Multi-Field Tracking {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${green}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    reveal: Reveal-Password Fix {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${red}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    cleanup: Window-Change Cleanup {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${muted}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+  }
+
+  # --- Overlay Layer ---
+
+  overlays: Overlay Layer {
+    style: {
+      fill: "#151520"
+      stroke: ${amber}
+      border-radius: 8
+      font-color: ${amber}
+      font-size: 16
+    }
+
+    manager: OverlayManager {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${amber}
+        font-color: ${amber}
+        font-size: 14
+        bold: true
+      }
+    }
+
+    mask: Mask Window {
+      style: {
+        fill: "#323232"
+        stroke: ${muted}
+        font-color: ${white}
+        font-size: 14
+        bold: true
+      }
+    }
+
+    mirror: Mirror Window {
+      style: {
+        fill: "#ffffff"
+        stroke: ${green}
+        font-color: "#000000"
+        font-size: 14
+        bold: true
+      }
+    }
+
+    manager -> mask: create/update {
+      style: {
+        stroke: ${muted}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    manager -> mirror: create/update {
+      style: {
+        stroke: ${green}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+  }
+
+  # --- Settings ---
+
+  settings: Settings {
+    style: {
+      fill: "#151520"
+      stroke: ${purple}
+      border-radius: 8
+      font-color: ${purple}
+      font-size: 16
+    }
+
+    form: SettingsForm (WinForms) {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${purple}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    json: settings.json {
+      shape: page
+      style: {
+        fill: "#1c1c30"
+        stroke: ${muted}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    form -> json: save {
+      style: {
+        stroke: ${purple}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+  }
+
+  # --- Internal connections ---
+
+  detection.detector -> tracker: sensitive field {
+    style: {
+      stroke: ${amber}
+      stroke-width: 3
+      animated: true
+      font-size: 14
+      font-color: ${amber}
+    }
+  }
+
+  tracker -> overlays.manager: tracked fields {
+    style: {
+      stroke: ${green}
+      stroke-width: 3
+      animated: true
+      font-size: 14
+      font-color: ${green}
+    }
+  }
+
+  settings.json -> detection.patterns: custom keywords {
+    style: {
+      stroke: ${purple}
+      stroke-width: 2
+      stroke-dash: 5
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+
+  settings.json -> overlays.manager: colors, padding {
+    style: {
+      stroke: ${purple}
+      stroke-width: 2
+      stroke-dash: 5
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+}
+
+# =========================================================================
+# Output: What each viewer sees
+# =========================================================================
+
+user-view: Local Display (User) {
+  style: {
+    fill: "#0a2a0a"
+    stroke: ${green}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${green}
+    font-size: 18
+    bold: true
+  }
+
+  sees: |md
+    Mirror window visible
+    (WDA_EXCLUDEFROMCAPTURE)
+
+    User sees typed content
+    in the mirror overlay
+  | {
+    style: {
+      font-size: 14
+      font-color: ${white}
+    }
+  }
+}
+
+capture-view: Screen Capture (Stream/Recording) {
+  style: {
+    fill: "#2a0a0a"
+    stroke: ${red}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${red}
+    font-size: 18
+    bold: true
+  }
+
+  sees: |md
+    Mask window visible
+    (no display affinity)
+
+    Capture sees grey box
+    over every sensitive field
+  | {
+    style: {
+      font-size: 14
+      font-color: ${white}
+    }
+  }
+}
+
+windows.overlays.mirror -> user-view: visible locally {
+  style: {
+    stroke: ${green}
+    stroke-width: 3
+    animated: true
+    font-size: 14
+    font-color: ${green}
+  }
+}
+
+windows.overlays.mask -> capture-view: visible in capture {
+  style: {
+    stroke: ${red}
+    stroke-width: 3
+    animated: true
+    font-size: 14
+    font-color: ${red}
+  }
+}
+
+# =========================================================================
+# Chrome Extension
+# =========================================================================
+
+extension: Chrome Extension (Manifest V3) {
+  style: {
+    fill: ${dark-bg}
+    stroke: ${blue}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${white}
+    font-size: 20
+    bold: true
+  }
+
+  content: content.js {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${blue}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  observer: MutationObserver {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${blue}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  dom-overlay: DOM Overlay {
+    style: {
+      fill: "#323232"
+      stroke: ${amber}
+      font-color: ${amber}
+      font-size: 14
+      bold: true
+    }
+  }
+
+  popup: Popup UI {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${purple}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  content -> observer: watch DOM {
+    style: {
+      stroke: ${blue}
+      stroke-width: 2
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+
+  observer -> dom-overlay: sensitive field found {
+    style: {
+      stroke: ${amber}
+      stroke-width: 3
+      animated: true
+      font-size: 14
+      font-color: ${amber}
+    }
+  }
+}
+
+# =========================================================================
+# Linux App
+# =========================================================================
+
+linux: Linux App (Python / GTK4) {
+  style: {
+    fill: ${dark-bg}
+    stroke: ${muted}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${white}
+    font-size: 20
+    bold: true
+  }
+
+  atspi: AT-SPI2 Focus Monitor {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${muted}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  detect: Sensitivity Detector {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${amber}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  gtk-overlay: GTK4 Overlay {
+    style: {
+      fill: "#323232"
+      stroke: ${muted}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  note: |md
+    No capture exclusion API
+    on X11 or Wayland.
+    Overlay visible to both
+    user and capture.
+  | {
+    style: {
+      font-size: 14
+      font-color: ${red}
+      italic: true
+    }
+  }
+
+  atspi -> detect: focused element {
+    style: {
+      stroke: ${muted}
+      stroke-width: 2
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+
+  detect -> gtk-overlay: sensitive field {
+    style: {
+      stroke: ${amber}
+      stroke-width: 2
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+}
+
+# =========================================================================
+# Sensitive Field Types (shared detection logic)
+# =========================================================================
+
+field-types: Detected Field Types {
+  style: {
+    fill: "#151520"
+    stroke: ${amber}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${amber}
+    font-size: 18
+    bold: true
+  }
+
+  financial: Financial {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${amber}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  identity: Identity {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${amber}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  auth: Authentication {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${amber}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  custom: Custom Patterns {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${purple}
+      font-color: ${white}
+      font-size: 14
+    }
+  }
+
+  details: |md
+    **Financial:** CC, CVV, IBAN, routing, SWIFT
+    **Identity:** SSN, passport, driver license, tax ID
+    **Auth:** password, API key, token, OTP, 2FA, PIN
+    **Hebrew:** ת.ז, תעודת זהות, כרטיס אשראי, סיסמה, קוד אבטחה
+    **Custom:** user-defined keywords via settings
+    **ControlTypes:** Edit, Document, ComboBox, Custom, List, Text
+  | {
+    style: {
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+}
+
+field-types -> windows.detection.patterns: keyword match {
+  style: {
+    stroke: ${amber}
+    stroke-width: 2
+    stroke-dash: 5
+    font-size: 14
+    font-color: ${muted}
+  }
+}
+
+field-types -> extension.observer: type/autocomplete/aria match {
+  style: {
+    stroke: ${amber}
+    stroke-width: 2
+    stroke-dash: 5
+    font-size: 14
+    font-color: ${muted}
+  }
+}
+
+field-types -> linux.detect: name/role match {
+  style: {
+    stroke: ${amber}
+    stroke-width: 2
+    stroke-dash: 5
+    font-size: 14
+    font-color: ${muted}
+  }
+}
+
+# =========================================================================
+# Capture compatibility (all services go through DWM)
+# =========================================================================
+
+capture-compat: Capture Compatibility {
+  style: {
+    fill: "#151520"
+    stroke: ${red}
+    stroke-width: 2
+    border-radius: 12
+    font-color: ${red}
+    font-size: 18
+    bold: true
+  }
+
+  dwm: DWM Compositor {
+    style: {
+      fill: "#1c1c30"
+      stroke: ${red}
+      font-color: ${white}
+      font-size: 14
+      bold: true
+    }
+  }
+
+  services: |md
+    Discord, Zoom, Google Meet,
+    Microsoft Teams, OBS Studio,
+    Skype, Slack, Snipping Tool,
+    Xbox Game Bar, PrintScreen
+  | {
+    style: {
+      font-size: 14
+      font-color: ${white}
+    }
+  }
+
+  note: |md
+    ALL capture APIs (BitBlt, DXGI,
+    Windows.Graphics.Capture) go
+    through DWM. WDA_EXCLUDEFROMCAPTURE
+    is enforced at compositor level.
+  | {
+    style: {
+      font-size: 14
+      font-color: ${muted}
+      italic: true
+    }
+  }
+
+  services -> dwm: capture request {
+    style: {
+      stroke: ${red}
+      stroke-width: 2
+      font-size: 14
+      font-color: ${muted}
+    }
+  }
+}
+
+capture-view -> capture-compat.dwm: {
+  style: {
+    stroke: ${red}
+    stroke-width: 2
+    stroke-dash: 5
+  }
+}
