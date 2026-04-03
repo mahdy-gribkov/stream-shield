@@ -1,17 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Required for System.Windows.Automation (UIAutomationClient) -->
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>StreamShield</RootNamespace>
     <SupportedOSPlatform>windows10.0.19041.0</SupportedOSPlatform>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="StreamShield.Tests" />
     <InternalsVisibleTo Include="StreamShield.E2E" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\app.ico" LogicalName="StreamShield.app.ico" />
+  </ItemGroup>
+
 </Project>

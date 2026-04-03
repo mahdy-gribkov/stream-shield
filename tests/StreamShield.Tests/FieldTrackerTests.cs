@@ -254,4 +254,19 @@ public class FieldTrackerTests
         Assert.Equal(0, tracker.Count);
         Assert.Empty(tracker.GetPersistentFields());
     }
+
+    // --- RefreshPersistentBounds ---
+
+    [Fact]
+    public void RefreshPersistentBounds_NullElements_NoChange()
+    {
+        var tracker = new FieldTracker();
+        tracker.Track(Bounds1, SensitivityKind.Password, Hwnd1);
+        tracker.UnfocusAll();
+
+        bool changed = tracker.RefreshPersistentBounds();
+
+        Assert.False(changed);
+        Assert.Single(tracker.GetPersistentFields());
+    }
 }

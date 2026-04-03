@@ -3,6 +3,7 @@
   "name": "StreamShield",
   "version": "1.0.0",
   "description": "Auto-detects and protects sensitive input fields from screen capture",
+  "homepage_url": "https://github.com/medy-gribkov/stream-shield",
   "permissions": ["activeTab", "storage"],
   "action": {
     "default_popup": "popup.html",

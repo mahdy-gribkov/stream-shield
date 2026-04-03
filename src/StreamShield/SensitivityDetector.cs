@@ -10,7 +10,8 @@ sealed record InspectionResult(
     Rectangle Bounds,
     string Description,
     IntPtr TopLevelHwnd,
-    string? FieldValue);
+    string? FieldValue,
+    AutomationElement? Element = null);
 
 sealed class SensitivityDetector
 {
@@ -74,7 +75,7 @@ sealed class SensitivityDetector
             {
                 return new InspectionResult(
                     SensitivityKind.Password, bounds, "Password field",
-                    topLevelHwnd, null);
+                    topLevelHwnd, null, focused);
             }
 
             // ControlType filter for keyword-based detection only.
@@ -108,7 +109,7 @@ sealed class SensitivityDetector
                 string? value = ReadFieldValue(focused);
                 return new InspectionResult(
                     SensitivityKind.SensitiveText, bounds, desc,
-                    topLevelHwnd, value);
+                    topLevelHwnd, value, focused);
             }
 
             // Reveal-password fallback: position match against FieldTracker
@@ -120,7 +121,7 @@ sealed class SensitivityDetector
                     string? value = ReadFieldValue(focused);
                     return new InspectionResult(
                         tracked.Kind, bounds, "Tracked field (revealed)",
-                        topLevelHwnd, value);
+                        topLevelHwnd, value, focused);
                 }
             }
 

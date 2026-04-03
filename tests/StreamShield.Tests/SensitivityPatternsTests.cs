@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Xunit;
 
@@ -8,6 +9,7 @@ public class SensitivityPatternsTests
     public SensitivityPatternsTests()
     {
         SensitivityPatterns.LoadCustomPatterns([]);
+        SensitivityPatterns.SetActiveCategories([.. Enum.GetValues<PatternCategory>()]);
     }
 
     // --- Authentication ---

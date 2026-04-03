@@ -16,6 +16,7 @@ public sealed class TestFormFixture : IDisposable
     private readonly Thread _uiThread;
     private readonly ManualResetEventSlim _ready = new();
     private Form? _form;
+    private Panel? _scrollPanel;
 
     public IntPtr FormHandle { get; private set; }
     public IntPtr PasswordFieldHandle { get; private set; }
@@ -23,6 +24,8 @@ public sealed class TestFormFixture : IDisposable
     public IntPtr HebrewIdFieldHandle { get; private set; }
     public IntPtr SsnFieldHandle { get; private set; }
     public IntPtr EmailFieldHandle { get; private set; }
+    public IntPtr ScrollPasswordFieldHandle { get; private set; }
+    public IntPtr ScrollCardFieldHandle { get; private set; }
 
     public TestFormFixture()
     {
@@ -98,6 +101,44 @@ public sealed class TestFormFixture : IDisposable
             AccessibleName = "Email"
         };
         _form.Controls.AddRange([emailLabel, emailField]);
+        y += 40;
+
+        // Scrollable panel with fields for scroll tracking tests
+        var scrollPanel = new Panel
+        {
+            Location = new Point(0, y),
+            Size = new Size(480, 80),
+            AutoScroll = true
+        };
+
+        int sy = 10;
+        var spwLabel = new Label { Text = "Password:", Location = new Point(20, sy), AutoSize = true };
+        var spwField = new TextBox
+        {
+            Location = new Point(200, sy),
+            Size = new Size(250, 25),
+            UseSystemPasswordChar = true,
+            AccessibleName = "ScrollPassword"
+        };
+        scrollPanel.Controls.AddRange([spwLabel, spwField]);
+        sy += 40;
+
+        var sccLabel = new Label { Text = "Card Number:", Location = new Point(20, sy), AutoSize = true };
+        var sccField = new TextBox
+        {
+            Location = new Point(200, sy),
+            Size = new Size(250, 25),
+            AccessibleName = "Card Number"
+        };
+        scrollPanel.Controls.AddRange([sccLabel, sccField]);
+        sy += 40;
+
+        // Spacer to force scrollability
+        scrollPanel.Controls.Add(new Panel { Location = new Point(0, sy), Size = new Size(10, 300) });
+        _scrollPanel = scrollPanel;
+        _form.Controls.Add(scrollPanel);
+
+        _form.Size = new Size(500, y + 120);
 
         _form.Shown += (_, _) =>
         {
@@ -107,6 +148,8 @@ public sealed class TestFormFixture : IDisposable
             HebrewIdFieldHandle = hebrewField.Handle;
             SsnFieldHandle = ssnField.Handle;
             EmailFieldHandle = emailField.Handle;
+            ScrollPasswordFieldHandle = spwField.Handle;
+            ScrollCardFieldHandle = sccField.Handle;
             _ready.Set();
         };
 
@@ -124,6 +167,18 @@ public sealed class TestFormFixture : IDisposable
         var element = AutomationElement.FromHandle(handle);
         element.SetFocus();
         Thread.Sleep(150); // Let UIA catch up
+    }
+
+    /// <summary>Scroll the test panel by the given delta (positive = down).</summary>
+    public void ScrollPanel(int deltaY)
+    {
+        if (_form is null || _form.IsDisposed || _scrollPanel is null) return;
+        _form.Invoke(() =>
+        {
+            var pos = _scrollPanel.AutoScrollPosition;
+            _scrollPanel.AutoScrollPosition = new Point(0, -pos.Y + deltaY);
+        });
+        Thread.Sleep(100);
     }
 
     public void Dispose()

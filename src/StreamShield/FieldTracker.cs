@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Automation;
 
 namespace StreamShield;
 
@@ -13,7 +15,7 @@ sealed class FieldTracker
 {
     private readonly Dictionary<int, TrackedField> _fields = [];
     private IntPtr _currentTopLevelHwnd;
-    private const int PositionTolerance = 15;
+    internal const int PositionTolerance = 15;
 
     public IReadOnlyCollection<TrackedField> TrackedFields => _fields.Values;
     public int Count => _fields.Count;
@@ -22,7 +24,8 @@ sealed class FieldTracker
     /// Register a sensitive field. Called when focus enters a sensitive element.
     /// Returns the tracked field (existing or newly created).
     /// </summary>
-    public TrackedField Track(Rectangle bounds, SensitivityKind kind, IntPtr topLevelHwnd)
+    public TrackedField Track(Rectangle bounds, SensitivityKind kind, IntPtr topLevelHwnd,
+        AutomationElement? element = null)
     {
         int key = MakeKey(bounds, topLevelHwnd);
 
@@ -31,6 +34,7 @@ sealed class FieldTracker
             existing.Bounds = bounds;
             existing.LastSeen = DateTime.UtcNow;
             existing.IsFocused = true;
+            existing.Element = element;
             return existing;
         }
 
@@ -40,7 +44,8 @@ sealed class FieldTracker
             Bounds = bounds,
             TopLevelHwnd = topLevelHwnd,
             LastSeen = DateTime.UtcNow,
-            IsFocused = true
+            IsFocused = true,
+            Element = element
         };
 
         _fields[key] = field;
@@ -139,6 +144,67 @@ sealed class FieldTracker
         return _fields.Values.Where(f => !f.IsFocused).ToList();
     }
 
+    /// <summary>
+    /// Re-read UIA bounds for all non-focused tracked fields.
+    /// Removes fields whose AutomationElement has gone stale.
+    /// </summary>
+    public bool RefreshPersistentBounds()
+    {
+        List<int> toRemove = [];
+        List<(int oldKey, TrackedField field, Rectangle newBounds)> toRekey = [];
+        bool changed = false;
+
+        foreach (var (key, field) in _fields)
+        {
+            if (field.IsFocused || field.Element is null)
+                continue;
+
+            try
+            {
+                System.Windows.Rect wpfRect = field.Element.Current.BoundingRectangle;
+
+                if (wpfRect.IsEmpty || wpfRect.Width < 10 || wpfRect.Height < 5)
+                {
+                    toRemove.Add(key);
+                    continue;
+                }
+
+                var newBounds = new Rectangle(
+                    (int)wpfRect.X, (int)wpfRect.Y,
+                    (int)wpfRect.Width, (int)wpfRect.Height);
+
+                if (newBounds != field.Bounds)
+                {
+                    int newKey = MakeKey(newBounds, field.TopLevelHwnd);
+                    if (newKey != key)
+                        toRekey.Add((key, field, newBounds));
+                    else
+                        field.Bounds = newBounds;
+                    changed = true;
+                }
+            }
+            catch (Exception ex) when (
+                ex is ElementNotAvailableException or
+                COMException or
+                InvalidOperationException)
+            {
+                toRemove.Add(key);
+            }
+        }
+
+        foreach (var (oldKey, field, newBounds) in toRekey)
+        {
+            _fields.Remove(oldKey);
+            field.Bounds = newBounds;
+            _fields[MakeKey(newBounds, field.TopLevelHwnd)] = field;
+        }
+
+        foreach (int key in toRemove)
+            _fields.Remove(key);
+
+        return changed;
+    }
+
     private static int MakeKey(Rectangle bounds, IntPtr hwnd)
     {
         return HashCode.Combine(
@@ -155,4 +221,5 @@ sealed class TrackedField
     public required IntPtr TopLevelHwnd { get; set; }
     public required DateTime LastSeen { get; set; }
     public bool IsFocused { get; set; }
+    public AutomationElement? Element { get; set; }
 }

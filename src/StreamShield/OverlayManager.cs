@@ -54,7 +54,7 @@ sealed class OverlayManager : IDisposable
 
         string displayText = kind == SensitivityKind.Password
             ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-            : fieldValue ?? "Protected";
+            : fieldValue ?? Theme.ProtectedLabel;
 
         pair.Mirror.UpdateText(displayText, leftAlign: true);
     }
@@ -74,7 +74,7 @@ sealed class OverlayManager : IDisposable
 
         pair.Mask.SetBoundsAndShow(padded, _settings.MaskColor);
         pair.Mirror.SetBoundsAndShow(padded, _settings.PersistentBg, _settings.PersistentFg);
-        pair.Mirror.UpdateText("Protected", leftAlign: false);
+        pair.Mirror.UpdateText(Theme.ProtectedLabel, leftAlign: false);
     }
 
     /// <summary>Remove a specific field's overlay.</summary>
@@ -112,7 +112,7 @@ sealed class OverlayManager : IDisposable
         if (_overlays.TryGetValue(fieldKey, out OverlayPair? pair))
         {
             pair.Mirror.SetColors(_settings.PersistentBg, _settings.PersistentFg);
-            pair.Mirror.UpdateText("Protected", leftAlign: false);
+            pair.Mirror.UpdateText(Theme.ProtectedLabel, leftAlign: false);
         }
     }
 
@@ -153,8 +153,8 @@ sealed class OverlayManager : IDisposable
     /// </summary>
     private sealed class OverlayWindow : Form
     {
-        private static readonly Font FocusedFont = new("Segoe UI", 11f, FontStyle.Regular);
-        private static readonly Font PersistentFont = new("Segoe UI", 9f, FontStyle.Bold);
+        private static readonly Font FocusedFont = Theme.OverlayFocused;
+        private static readonly Font PersistentFont = Theme.OverlayPersistent;
         private readonly bool _isMirror;
         private readonly Label _label;
 

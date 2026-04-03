@@ -11,6 +11,7 @@ namespace StreamShield.E2E;
 /// (SensitivityDetector + SensitivityPatterns + FieldTracker)
 /// against actual WinForms controls inspected via UIA.
 /// </summary>
+[Collection("E2E")]
 public sealed class DetectionE2ETests : IClassFixture<TestFormFixture>
 {
     private readonly TestFormFixture _fixture;

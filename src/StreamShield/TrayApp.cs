@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
 using System.Windows.Forms;
 
 namespace StreamShield;
@@ -31,6 +33,7 @@ sealed class TrayApp : ApplicationContext
         _focusMonitor.FocusDebounced += OnFocusDebounced;
 
         SensitivityPatterns.LoadCustomPatterns(settings.CustomPatterns);
+        SensitivityPatterns.SetActiveCategories(BuildActiveCategories());
 
         // Position + content update timer: 50ms (20fps)
         _positionTimer = new Timer { Interval = 50 };
@@ -38,7 +41,7 @@ sealed class TrayApp : ApplicationContext
 
         _trayIcon = new NotifyIcon
         {
-            Icon = CreateCircleIcon(Color.FromArgb(0, 180, 0)),
+            Icon = LoadAppIcon(16),
             Text = "StreamShield - Active",
             Visible = true,
             ContextMenuStrip = BuildMenu()
@@ -82,7 +85,7 @@ sealed class TrayApp : ApplicationContext
         foreach (TrackedField field in stale)
         {
             int key = HashCode.Combine(
-                field.Bounds.X / 15, field.Bounds.Y / 15, field.TopLevelHwnd);
+                field.Bounds.X / FieldTracker.PositionTolerance, field.Bounds.Y / FieldTracker.PositionTolerance, field.TopLevelHwnd);
             _overlays.Remove(key);
         }
 
@@ -102,19 +105,22 @@ sealed class TrayApp : ApplicationContext
             // Unfocus all, then mark the current one
             _fieldTracker.UnfocusAll();
             TrackedField tracked = _fieldTracker.Track(
-                result.Bounds, result.Kind, result.TopLevelHwnd);
+                result.Bounds, result.Kind, result.TopLevelHwnd, result.Element);
 
             int fieldKey = HashCode.Combine(
-                result.Bounds.X / 15, result.Bounds.Y / 15, result.TopLevelHwnd);
+                result.Bounds.X / FieldTracker.PositionTolerance, result.Bounds.Y / FieldTracker.PositionTolerance, result.TopLevelHwnd);
 
             // Show focused overlay with content mirror
             _overlays.ShowFocused(fieldKey, result.Bounds, result.Kind, result.FieldValue);
+
+            // Refresh bounds for persistent fields (handles scroll/resize)
+            _fieldTracker.RefreshPersistentBounds();
 
             // Show persistent overlays for previously-filled fields
             foreach (TrackedField persistent in _fieldTracker.GetPersistentFields())
             {
                 int pKey = HashCode.Combine(
-                    persistent.Bounds.X / 15, persistent.Bounds.Y / 15, persistent.TopLevelHwnd);
+                    persistent.Bounds.X / FieldTracker.PositionTolerance, persistent.Bounds.Y / FieldTracker.PositionTolerance, persistent.TopLevelHwnd);
                 _overlays.ShowPersistent(pKey, persistent.Bounds);
             }
         }
@@ -137,6 +143,9 @@ sealed class TrayApp : ApplicationContext
 
     private void SyncPersistentOverlays()
     {
+        // Refresh bounds for persistent fields (handles scroll/resize)
+        _fieldTracker.RefreshPersistentBounds();
+
         // Get current persistent fields
         List<TrackedField> persistent = _fieldTracker.GetPersistentFields();
         HashSet<int> validKeys = [];
@@ -144,7 +153,7 @@ sealed class TrayApp : ApplicationContext
         foreach (TrackedField field in persistent)
         {
             int key = HashCode.Combine(
-                field.Bounds.X / 15, field.Bounds.Y / 15, field.TopLevelHwnd);
+                field.Bounds.X / FieldTracker.PositionTolerance, field.Bounds.Y / FieldTracker.PositionTolerance, field.TopLevelHwnd);
             validKeys.Add(key);
             _overlays.ShowPersistent(key, field.Bounds);
         }
@@ -186,12 +195,13 @@ sealed class TrayApp : ApplicationContext
     {
         _overlays.UpdateSettings(_settings);
         SensitivityPatterns.LoadCustomPatterns(_settings.CustomPatterns);
+        SensitivityPatterns.SetActiveCategories(BuildActiveCategories());
 
         if (_settings.Enabled)
         {
             _focusMonitor.Start();
             _positionTimer.Start();
-            _trayIcon.Icon = CreateCircleIcon(Color.FromArgb(0, 180, 0));
+            _trayIcon.Icon = LoadAppIcon(16);
         }
         else
         {
@@ -199,7 +209,7 @@ sealed class TrayApp : ApplicationContext
             _positionTimer.Stop();
             _overlays.HideAll();
             _fieldTracker.Clear();
-            _trayIcon.Icon = CreateCircleIcon(Color.FromArgb(180, 0, 0));
+            _trayIcon.Icon = CreateCircleIcon(Theme.DisabledRed);
             _trayIcon.Text = "StreamShield - Disabled";
         }
     }
@@ -239,6 +249,24 @@ sealed class TrayApp : ApplicationContext
         return menu;
     }
 
+    private HashSet<PatternCategory> BuildActiveCategories()
+    {
+        HashSet<PatternCategory> cats = [];
+        if (_settings.DetectFinancial) cats.Add(PatternCategory.Financial);
+        if (_settings.DetectIdentity) cats.Add(PatternCategory.Identity);
+        if (_settings.DetectAuthentication) cats.Add(PatternCategory.Authentication);
+        if (_settings.DetectMfaOtp) cats.Add(PatternCategory.MfaOtp);
+        if (_settings.DetectHebrew) cats.Add(PatternCategory.Hebrew);
+        return cats;
+    }
+
+    private static Icon LoadAppIcon(int size)
+    {
+        using var stream = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("StreamShield.app.ico")!;
+        return new Icon(stream, size, size);
+    }
+
     private static Icon CreateCircleIcon(Color color)
     {
         using var bmp = new Bitmap(16, 16);
@@ -247,6 +275,9 @@ sealed class TrayApp : ApplicationContext
         g.Clear(Color.Transparent);
         using var brush = new SolidBrush(color);
         g.FillEllipse(brush, 1, 1, 14, 14);
-        return Icon.FromHandle(bmp.GetHicon());
+        IntPtr hIcon = bmp.GetHicon();
+        var icon = (Icon)Icon.FromHandle(hIcon).Clone();
+        NativeMethods.DestroyIcon(hIcon);
+        return icon;
     }
 }

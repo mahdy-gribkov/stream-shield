@@ -28,6 +28,13 @@ sealed class AppSettings
     public string PersistentFgHex { get; set; } = "#C8C8C8";
     public List<string> CustomPatterns { get; set; } = [];
 
+    // Detection category toggles
+    public bool DetectFinancial { get; set; } = true;
+    public bool DetectIdentity { get; set; } = true;
+    public bool DetectAuthentication { get; set; } = true;
+    public bool DetectMfaOtp { get; set; } = true;
+    public bool DetectHebrew { get; set; } = true;
+
     [JsonIgnore]
     public Color MaskColor => ColorFromHex(MaskColorHex, Color.FromArgb(50, 50, 50));
 
