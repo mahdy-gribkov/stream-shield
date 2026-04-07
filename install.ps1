@@ -29,9 +29,10 @@ if ($FrameworkDependent) {
 }
 if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
 
-# Install
+# Install (exe + native DLLs required by WPF/UIAutomation)
 if (!(Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir | Out-Null }
-Copy-Item (Join-Path $publishDir $exeName) (Join-Path $installDir $exeName) -Force
+Copy-Item (Join-Path $publishDir '*.exe') $installDir -Force
+Copy-Item (Join-Path $publishDir '*.dll') $installDir -Force
 Write-Host "Installed to: $installDir" -ForegroundColor Green
 
 # Desktop shortcut
