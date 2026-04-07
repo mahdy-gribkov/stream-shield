@@ -32,4 +32,7 @@ static class Theme
 
     // Strings
     public const string ProtectedLabel = "Protected";
+    public const int Margin = 20;
+    public const int RowHeight = 32;
+    public const int SectionGap = 16;
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using Xunit;
 
 namespace StreamShield.Tests;
@@ -268,5 +269,44 @@ public class FieldTrackerTests
 
         Assert.False(changed);
         Assert.Single(tracker.GetPersistentFields());
+    }
+
+    // --- RefreshPersistentBoundsFast ---
+
+    [Fact]
+    public void FastRefresh_NoFields_ReturnsFalse()
+    {
+        var tracker = new FieldTracker();
+
+        bool changed = tracker.RefreshPersistentBoundsFast();
+
+        Assert.False(changed);
+    }
+
+    [Fact]
+    public void FastRefresh_SkipsFocusedFields()
+    {
+        var tracker = new FieldTracker();
+        tracker.Track(Bounds1, SensitivityKind.Password, Hwnd1);
+
+        // Field is focused, fast refresh should skip it
+        bool changed = tracker.RefreshPersistentBoundsFast();
+
+        Assert.False(changed);
+        Assert.Equal(Bounds1, tracker.TrackedFields.First().Bounds);
+    }
+
+    [Fact]
+    public void FastRefresh_InvalidHwnd_KeepsCurrentBounds()
+    {
+        var tracker = new FieldTracker();
+        tracker.Track(Bounds1, SensitivityKind.Password, Hwnd1);
+        tracker.UnfocusAll();
+
+        // Hwnd1 is fake, GetWindowRect will return false, fast refresh skips
+        bool changed = tracker.RefreshPersistentBoundsFast();
+
+        Assert.False(changed);
+        Assert.Equal(Bounds1, tracker.GetPersistentFields()[0].Bounds);
     }
 }

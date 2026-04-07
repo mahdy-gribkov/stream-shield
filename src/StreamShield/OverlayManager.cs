@@ -10,6 +10,7 @@ namespace StreamShield;
 /// Manages multiple overlay pairs (mask + mirror) for tracked sensitive fields.
 /// Focused field: mirror renders field content (white bg, field value).
 /// Persistent fields: mirror shows "Protected" label (dark bg).
+/// Supports DeferWindowPos batching and defensive mask expansion during scroll.
 /// </summary>
 sealed class OverlayManager : IDisposable
 {
@@ -17,6 +18,8 @@ sealed class OverlayManager : IDisposable
     private int _focusedKey = -1;
     private bool _disposed;
     private AppSettings _settings;
+    private IntPtr _batchHandle;
+    private DateTime _lastMovement = DateTime.MinValue;
 
     public OverlayManager(AppSettings settings)
     {
@@ -26,6 +29,23 @@ sealed class OverlayManager : IDisposable
     public int ActiveCount => _overlays.Count;
 
     public void UpdateSettings(AppSettings settings) => _settings = settings;
+
+    /// <summary>Begin a deferred window position batch. Call EndBatch() after all updates.</summary>
+    public void BeginBatch(int fieldCount)
+    {
+        if (fieldCount <= 0) return;
+        _batchHandle = NativeMethods.BeginDeferWindowPos(fieldCount * 2);
+    }
+
+    /// <summary>Commit all deferred position changes atomically.</summary>
+    public void EndBatch()
+    {
+        if (_batchHandle != IntPtr.Zero)
+        {
+            NativeMethods.EndDeferWindowPos(_batchHandle);
+            _batchHandle = IntPtr.Zero;
+        }
+    }
 
     /// <summary>Show or update the focused field's overlay with content mirroring.</summary>
     public void ShowFocused(int fieldKey, Rectangle bounds, SensitivityKind kind, string? fieldValue)
@@ -48,9 +68,13 @@ sealed class OverlayManager : IDisposable
             _overlays[fieldKey] = pair;
         }
 
-        // Style as focused: white bg, field content
-        pair.Mask.SetBoundsAndShow(padded, _settings.MaskColor);
-        pair.Mirror.SetBoundsAndShow(padded, _settings.MirrorBg, _settings.MirrorFg);
+        // Defensive expansion: if bounds moved, expand mask to cover gap
+        Rectangle maskBounds = ComputeDefensiveMask(padded, pair.PreviousMaskBounds);
+        pair.PreviousMaskBounds = padded;
+
+        // Position mask (visible to capture) and mirror (visible to user only)
+        PositionWindow(pair.Mask, maskBounds, _settings.MaskColor);
+        PositionWindow(pair.Mirror, padded, _settings.MirrorBg, _settings.MirrorFg);
 
         string displayText = kind == SensitivityKind.Password
             ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
@@ -72,9 +96,28 @@ sealed class OverlayManager : IDisposable
             _overlays[fieldKey] = pair;
         }
 
-        pair.Mask.SetBoundsAndShow(padded, _settings.MaskColor);
-        pair.Mirror.SetBoundsAndShow(padded, _settings.PersistentBg, _settings.PersistentFg);
+        // Defensive expansion for persistent overlays too
+        Rectangle maskBounds = ComputeDefensiveMask(padded, pair.PreviousMaskBounds);
+        pair.PreviousMaskBounds = padded;
+
+        PositionWindow(pair.Mask, maskBounds, _settings.MaskColor);
+        PositionWindow(pair.Mirror, padded, _settings.PersistentBg, _settings.PersistentFg);
         pair.Mirror.UpdateText(Theme.ProtectedLabel, leftAlign: false);
+    }
+
+    /// <summary>Shrink expanded masks back to precise bounds after movement stops.</summary>
+    public void SettleDefensiveMasks()
+    {
+        if (_lastMovement == DateTime.MinValue) return;
+        if ((DateTime.UtcNow - _lastMovement).TotalMilliseconds < 200) return;
+
+        _lastMovement = DateTime.MinValue;
+
+        foreach (var (_, pair) in _overlays)
+        {
+            if (pair.PreviousMaskBounds != default)
+                PositionWindow(pair.Mask, pair.PreviousMaskBounds, _settings.MaskColor);
+        }
     }
 
     /// <summary>Remove a specific field's overlay.</summary>
@@ -116,6 +159,52 @@ sealed class OverlayManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Compute defensive mask bounds. When movement is detected, expand mask
+    /// to cover both old and new positions so no gap is exposed during lag.
+    /// </summary>
+    private Rectangle ComputeDefensiveMask(Rectangle current, Rectangle previous)
+    {
+        if (previous == default || previous == current)
+            return current;
+
+        // Movement detected. Record timestamp for settle logic.
+        _lastMovement = DateTime.UtcNow;
+
+        int deltaX = current.X - previous.X;
+        int deltaY = current.Y - previous.Y;
+
+        // Expand mask in movement direction by 1.5x the delta
+        int expandX = (int)(Math.Abs(deltaX) * 1.5);
+        int expandY = (int)(Math.Abs(deltaY) * 1.5);
+
+        int left = Math.Min(current.X, previous.X) - expandX;
+        int top = Math.Min(current.Y, previous.Y) - expandY;
+        int right = Math.Max(current.Right, previous.Right) + expandX;
+        int bottom = Math.Max(current.Bottom, previous.Bottom) + expandY;
+
+        return new Rectangle(left, top, right - left, bottom - top);
+    }
+
+    /// <summary>Position a window using DeferWindowPos if batching, or SetBounds otherwise.</summary>
+    private void PositionWindow(OverlayWindow window, Rectangle bounds, Color bg, Color? fg = null)
+    {
+        window.BackColor = bg;
+        if (fg.HasValue) window.SetLabelForeColor(fg.Value);
+
+        if (_batchHandle != IntPtr.Zero && window.IsHandleCreated)
+        {
+            _batchHandle = NativeMethods.DeferWindowPos(
+                _batchHandle, window.Handle, IntPtr.Zero,
+                bounds.X, bounds.Y, bounds.Width, bounds.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOOWNERZORDER);
+        }
+        else
+        {
+            window.SetBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        }
+    }
+
     private Rectangle PadBounds(Rectangle bounds)
     {
         int pad = _settings.OverlayPadding;
@@ -139,6 +228,7 @@ sealed class OverlayManager : IDisposable
     {
         public OverlayWindow Mask { get; } = mask;
         public OverlayWindow Mirror { get; } = mirror;
+        public Rectangle PreviousMaskBounds { get; set; }
 
         public void Dispose()
         {
@@ -151,7 +241,7 @@ sealed class OverlayManager : IDisposable
     /// A single overlay window. When isMirror=true, has WDA_EXCLUDEFROMCAPTURE
     /// (invisible to capture, visible to user). When false, visible to capture (the mask).
     /// </summary>
-    private sealed class OverlayWindow : Form
+    internal sealed class OverlayWindow : Form
     {
         private static readonly Font FocusedFont = Theme.OverlayFocused;
         private static readonly Font PersistentFont = Theme.OverlayPersistent;
@@ -177,6 +267,8 @@ sealed class OverlayManager : IDisposable
             };
             Controls.Add(_label);
         }
+
+        public void SetLabelForeColor(Color fg) => _label.ForeColor = fg;
 
         public void SetBoundsAndShow(Rectangle bounds, Color bg, Color? fg = null)
         {

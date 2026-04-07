@@ -1,3 +1,7 @@
+:root {
+  --ss-accent: var(--ss-accent);
+}
+
 .streamshield-overlay {
   position: absolute;
   z-index: 2147483647;
@@ -18,7 +22,7 @@
 }
 
 .streamshield-overlay--focused {
-  border-color: #059669;
+  border-color: var(--ss-accent);
 }
 
 .streamshield-overlay--blurred .streamshield-overlay__value {
@@ -30,7 +34,7 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #059669;
+  color: var(--ss-accent);
   opacity: 0.8;
   user-select: none;
 }
@@ -48,5 +52,5 @@
 .streamshield-overlay__protected-label svg {
   width: 12px;
   height: 12px;
-  fill: #059669;
+  fill: var(--ss-accent);
 }

@@ -21,6 +21,7 @@ sealed class TrayApp : ApplicationContext
     private readonly OverlayManager _overlays;
     private readonly Timer _positionTimer;
     private SettingsForm? _settingsForm;
+    private int _tickCount;
 
     public TrayApp(AppSettings settings)
     {
@@ -35,8 +36,8 @@ sealed class TrayApp : ApplicationContext
         SensitivityPatterns.LoadCustomPatterns(settings.CustomPatterns);
         SensitivityPatterns.SetActiveCategories(BuildActiveCategories());
 
-        // Position + content update timer: 50ms (20fps)
-        _positionTimer = new Timer { Interval = 50 };
+        // Position + content update timer: 33ms (30fps)
+        _positionTimer = new Timer { Interval = 33 };
         _positionTimer.Tick += OnPositionTick;
 
         _trayIcon = new NotifyIcon
@@ -52,6 +53,14 @@ sealed class TrayApp : ApplicationContext
         {
             _focusMonitor.Start();
             _positionTimer.Start();
+        }
+
+        if (_settings.IsFirstRun)
+        {
+            _trayIcon.ShowBalloonTip(5000, "StreamShield",
+                "Protection is active. Right-click the tray icon for settings.", ToolTipIcon.Info);
+            _settings.IsFirstRun = false;
+            _settings.Save();
         }
     }
 
@@ -79,6 +88,7 @@ sealed class TrayApp : ApplicationContext
     private void OnPositionTick(object? sender, EventArgs e)
     {
         if (!_settings.Enabled) return;
+        _tickCount++;
 
         // Prune overlays for closed windows
         List<TrackedField> stale = _fieldTracker.PruneStale();
@@ -89,8 +99,18 @@ sealed class TrayApp : ApplicationContext
             _overlays.Remove(key);
         }
 
+        // Fast-path: update persistent field positions via GetWindowRect (sub-ms)
+        _fieldTracker.RefreshPersistentBoundsFast();
+
+        // Full UIA reconciliation every 15th tick (~500ms) to catch internal scroll drift
+        if (_tickCount % 15 == 0)
+            _fieldTracker.RefreshPersistentBounds();
+
         // Re-inspect focused element for position/content updates
         HandleInspection();
+
+        // Shrink expanded masks once movement settles
+        _overlays.SettleDefensiveMasks();
     }
 
     private void HandleInspection()
@@ -99,42 +119,38 @@ sealed class TrayApp : ApplicationContext
 
         if (result is not null)
         {
-            // Track window changes
             _fieldTracker.OnTopLevelWindowChanged(result.TopLevelHwnd);
-
-            // Unfocus all, then mark the current one
             _fieldTracker.UnfocusAll();
-            TrackedField tracked = _fieldTracker.Track(
+            _fieldTracker.Track(
                 result.Bounds, result.Kind, result.TopLevelHwnd, result.Element);
 
             int fieldKey = HashCode.Combine(
                 result.Bounds.X / FieldTracker.PositionTolerance, result.Bounds.Y / FieldTracker.PositionTolerance, result.TopLevelHwnd);
 
-            // Show focused overlay with content mirror
+            List<TrackedField> persistent = _fieldTracker.GetPersistentFields();
+
+            // Batch all overlay moves into one atomic DWM commit
+            _overlays.BeginBatch(1 + persistent.Count);
+
             _overlays.ShowFocused(fieldKey, result.Bounds, result.Kind, result.FieldValue);
 
-            // Refresh bounds for persistent fields (handles scroll/resize)
-            _fieldTracker.RefreshPersistentBounds();
-
-            // Show persistent overlays for previously-filled fields
-            foreach (TrackedField persistent in _fieldTracker.GetPersistentFields())
+            foreach (TrackedField pField in persistent)
             {
                 int pKey = HashCode.Combine(
-                    persistent.Bounds.X / FieldTracker.PositionTolerance, persistent.Bounds.Y / FieldTracker.PositionTolerance, persistent.TopLevelHwnd);
-                _overlays.ShowPersistent(pKey, persistent.Bounds);
+                    pField.Bounds.X / FieldTracker.PositionTolerance, pField.Bounds.Y / FieldTracker.PositionTolerance, pField.TopLevelHwnd);
+                _overlays.ShowPersistent(pKey, pField.Bounds);
             }
+
+            _overlays.EndBatch();
         }
         else
         {
-            // Focus is on a non-sensitive element
             _fieldTracker.UnfocusAll();
 
-            // Keep persistent overlays, but check for window change
             IntPtr fgHwnd = NativeMethods.GetForegroundWindow();
             if (fgHwnd != IntPtr.Zero)
                 _fieldTracker.OnTopLevelWindowChanged(fgHwnd);
 
-            // Update persistent overlays (some may have been removed by window change)
             SyncPersistentOverlays();
         }
 
@@ -143,12 +159,10 @@ sealed class TrayApp : ApplicationContext
 
     private void SyncPersistentOverlays()
     {
-        // Refresh bounds for persistent fields (handles scroll/resize)
-        _fieldTracker.RefreshPersistentBounds();
-
-        // Get current persistent fields
         List<TrackedField> persistent = _fieldTracker.GetPersistentFields();
         HashSet<int> validKeys = [];
+
+        _overlays.BeginBatch(persistent.Count);
 
         foreach (TrackedField field in persistent)
         {
@@ -158,7 +172,8 @@ sealed class TrayApp : ApplicationContext
             _overlays.ShowPersistent(key, field.Bounds);
         }
 
-        // Remove overlays that no longer have a tracked field
+        _overlays.EndBatch();
+
         List<int> toRemove = [];
         foreach (int key in _overlays.ActiveKeys)
         {
@@ -178,10 +193,11 @@ sealed class TrayApp : ApplicationContext
             : "StreamShield - Active";
     }
 
-    private void ShowSettings()
+    private void ShowSettings(int tabIndex = 0)
     {
         if (_settingsForm is not null && !_settingsForm.IsDisposed)
         {
+            _settingsForm.SelectTab(tabIndex);
             _settingsForm.BringToFront();
             return;
         }
@@ -189,6 +205,7 @@ sealed class TrayApp : ApplicationContext
         _settingsForm = new SettingsForm(_settings, _fieldTracker, OnSettingsChanged);
         _settingsForm.FormClosed += (_, _) => _settingsForm = null;
         _settingsForm.Show();
+        _settingsForm.SelectTab(tabIndex);
     }
 
     private void OnSettingsChanged()
@@ -233,6 +250,9 @@ sealed class TrayApp : ApplicationContext
         var settingsItem = new ToolStripMenuItem("Settings...");
         settingsItem.Click += (_, _) => ShowSettings();
 
+        var aboutItem = new ToolStripMenuItem("About");
+        aboutItem.Click += (_, _) => ShowSettings(3);
+
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (_, _) =>
         {
@@ -243,6 +263,7 @@ sealed class TrayApp : ApplicationContext
 
         menu.Items.Add(toggleItem);
         menu.Items.Add(settingsItem);
+        menu.Items.Add(aboutItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);
 

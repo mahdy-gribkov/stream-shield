@@ -260,4 +260,52 @@ public class SensitivityPatternsTests
     {
         Assert.True(SensitivityPatterns.IsSensitiveField(name, null));
     }
+
+    // --- Category filtering ---
+
+    [Fact]
+    public void DisabledCategory_NotDetected()
+    {
+        var categories = new HashSet<PatternCategory>(Enum.GetValues<PatternCategory>());
+        categories.Remove(PatternCategory.Financial);
+        SensitivityPatterns.SetActiveCategories(categories);
+
+        Assert.False(SensitivityPatterns.IsSensitiveField("Card Number", null));
+        Assert.True(SensitivityPatterns.IsSensitiveField("Password", null));
+    }
+
+    [Fact]
+    public void OnlyOneCategory_OnlyThatDetected()
+    {
+        SensitivityPatterns.SetActiveCategories(new HashSet<PatternCategory> { PatternCategory.MfaOtp });
+
+        Assert.True(SensitivityPatterns.IsSensitiveField("PIN", null));
+        Assert.False(SensitivityPatterns.IsSensitiveField("Card Number", null));
+        Assert.False(SensitivityPatterns.IsSensitiveField("Password", null));
+    }
+
+    [Fact]
+    public void EmptyCategories_NothingBuiltInDetected()
+    {
+        SensitivityPatterns.SetActiveCategories(new HashSet<PatternCategory>());
+
+        Assert.False(SensitivityPatterns.IsSensitiveField("Card Number", null));
+
+        SensitivityPatterns.LoadCustomPatterns(["my-custom"]);
+        Assert.True(SensitivityPatterns.IsSensitiveField("my-custom field", null));
+    }
+
+    [Fact]
+    public void ReEnableCategory_DetectedAgain()
+    {
+        var categories = new HashSet<PatternCategory>(Enum.GetValues<PatternCategory>());
+        categories.Remove(PatternCategory.Identity);
+        SensitivityPatterns.SetActiveCategories(categories);
+
+        Assert.False(SensitivityPatterns.IsSensitiveField("SSN", null));
+
+        SensitivityPatterns.SetActiveCategories([.. Enum.GetValues<PatternCategory>()]);
+
+        Assert.True(SensitivityPatterns.IsSensitiveField("SSN", null));
+    }
 }

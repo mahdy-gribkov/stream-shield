@@ -34,6 +34,7 @@ sealed class AppSettings
     public bool DetectAuthentication { get; set; } = true;
     public bool DetectMfaOtp { get; set; } = true;
     public bool DetectHebrew { get; set; } = true;
+    public bool IsFirstRun { get; set; } = true;
 
     [JsonIgnore]
     public Color MaskColor => ColorFromHex(MaskColorHex, Color.FromArgb(50, 50, 50));

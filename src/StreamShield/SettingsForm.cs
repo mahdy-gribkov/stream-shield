@@ -14,6 +14,7 @@ sealed class SettingsForm : Form
     private readonly AppSettings _settings;
     private readonly FieldTracker _fieldTracker;
     private readonly Action _onSettingsChanged;
+    private readonly TabControl _tabs;
     private TextBox? _patternsBox;
 
     public SettingsForm(AppSettings settings, FieldTracker fieldTracker, Action onSettingsChanged)
@@ -36,24 +37,24 @@ sealed class SettingsForm : Form
         if (iconStream is not null)
             Icon = new Icon(iconStream);
 
-        var tabs = new TabControl
+        _tabs = new TabControl
         {
             Dock = DockStyle.Fill,
             Padding = new Point(12, 6)
         };
 
-        tabs.TabPages.Add(BuildStatusTab());
-        tabs.TabPages.Add(BuildPatternsTab());
-        tabs.TabPages.Add(BuildAppearanceTab());
-        tabs.TabPages.Add(BuildAboutTab());
+        _tabs.TabPages.Add(BuildStatusTab());
+        _tabs.TabPages.Add(BuildPatternsTab());
+        _tabs.TabPages.Add(BuildAppearanceTab());
+        _tabs.TabPages.Add(BuildAboutTab());
 
-        foreach (TabPage page in tabs.TabPages)
+        foreach (TabPage page in _tabs.TabPages)
         {
             page.BackColor = Theme.FormBg;
             page.ForeColor = Theme.TextPrimary;
         }
 
-        Controls.Add(tabs);
+        Controls.Add(_tabs);
     }
 
     private TabPage BuildStatusTab()
@@ -65,7 +66,7 @@ sealed class SettingsForm : Form
         {
             Text = "Protection Enabled",
             Checked = _settings.Enabled,
-            Location = new Point(20, y),
+            Location = new Point(Theme.Margin, y),
             AutoSize = true,
             ForeColor = Theme.TextPrimary
         };
@@ -75,21 +76,21 @@ sealed class SettingsForm : Form
             _settings.Save();
             _onSettingsChanged();
         };
-        y += 40;
+        y += Theme.RowHeight + 6;
 
         var fieldsLabel = new Label
         {
             Text = $"Currently tracking {_fieldTracker.Count} sensitive field(s)",
-            Location = new Point(20, y),
+            Location = new Point(Theme.Margin, y),
             AutoSize = true
         };
-        y += 30;
+        y += Theme.RowHeight - 6;
 
         var refreshBtn = new Button
         {
             Text = "Refresh",
-            Location = new Point(20, y),
-            Size = new Size(100, 32),
+            Location = new Point(Theme.Margin, y),
+            Size = new Size(100, Theme.RowHeight),
             FlatStyle = FlatStyle.Flat,
             BackColor = Theme.ButtonBg,
             ForeColor = Color.White
@@ -98,18 +99,17 @@ sealed class SettingsForm : Form
         {
             fieldsLabel.Text = $"Currently tracking {_fieldTracker.Count} sensitive field(s)";
         };
-        y += 50;
+        y += Theme.RowHeight + Theme.SectionGap;
 
-        // Detection category toggles
         var categoryLabel = new Label
         {
             Text = "Detection Categories",
-            Location = new Point(20, y),
+            Location = new Point(Theme.Margin, y),
             AutoSize = true,
             Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold)
         };
         page.Controls.Add(categoryLabel);
-        y += 28;
+        y += Theme.RowHeight - 4;
 
         AddCategoryToggle(page, "Financial (cards, IBAN, account numbers)",
             _settings.DetectFinancial, v => _settings.DetectFinancial = v, ref y);
@@ -144,7 +144,7 @@ sealed class SettingsForm : Form
             _onSettingsChanged();
         };
         page.Controls.Add(cb);
-        y += 26;
+        y += Theme.RowHeight - 6;
     }
 
     private TabPage BuildPatternsTab()
@@ -166,7 +166,7 @@ sealed class SettingsForm : Form
 
         var examplesLabel = new Label
         {
-            Text = "Examples:  bank-login  |  my-company-id  |  internal-token",
+            Text = "Examples: bank-login, my-company-id, internal-token",
             Location = new Point(20, y),
             AutoSize = true,
             ForeColor = Theme.TextSubtle,
@@ -174,22 +174,24 @@ sealed class SettingsForm : Form
         };
         y += 22;
 
+        int boxBottom = 280;
         _patternsBox = new TextBox
         {
             Multiline = true,
             ScrollBars = ScrollBars.Vertical,
-            Location = new Point(20, y),
-            Size = new Size(440, 280 - y),
+            Location = new Point(Theme.Margin, y),
+            Size = new Size(440, boxBottom - y),
             BackColor = Theme.InputBg,
             ForeColor = Theme.TextPrimary,
             BorderStyle = BorderStyle.FixedSingle,
             Text = string.Join(Environment.NewLine, _settings.CustomPatterns)
         };
 
+        int btnY = boxBottom + 8;
         var statusLabel = new Label
         {
             Text = "",
-            Location = new Point(160, 290),
+            Location = new Point(160, btnY + 4),
             AutoSize = true,
             ForeColor = Theme.Amber
         };
@@ -197,8 +199,8 @@ sealed class SettingsForm : Form
         var saveBtn = new Button
         {
             Text = "Save Patterns",
-            Location = new Point(20, 285),
-            Size = new Size(130, 32),
+            Location = new Point(Theme.Margin, btnY),
+            Size = new Size(130, Theme.RowHeight),
             FlatStyle = FlatStyle.Flat,
             BackColor = Theme.Amber,
             ForeColor = Theme.Dark
@@ -312,9 +314,13 @@ sealed class SettingsForm : Form
             try
             {
                 preview.BackColor = ColorTranslator.FromHtml(txt.Text);
+                txt.BackColor = Theme.InputBg;
                 onChanged(txt.Text);
             }
-            catch { }
+            catch
+            {
+                txt.BackColor = Color.FromArgb(80, 30, 30);
+            }
         };
 
         page.Controls.AddRange([lbl, txt, preview, pickBtn]);
@@ -327,7 +333,7 @@ sealed class SettingsForm : Form
 
         var title = new Label
         {
-            Text = "StreamShield v1.0",
+            Text = $"StreamShield v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0"}",
             Font = Theme.TitleFont,
             Location = new Point(20, 20),
             AutoSize = true
@@ -366,5 +372,11 @@ sealed class SettingsForm : Form
 
         page.Controls.AddRange([title, desc, linkLabel]);
         return page;
+    }
+
+    public void SelectTab(int index)
+    {
+        if (index >= 0 && index < _tabs.TabCount)
+            _tabs.SelectedIndex = index;
     }
 }

@@ -29,12 +29,23 @@ sealed class FieldTracker
     {
         int key = MakeKey(bounds, topLevelHwnd);
 
+        // Compute parent offset for fast-path position tracking
+        Point parentOffset = default;
+        Rectangle parentRect = default;
+        if (NativeMethods.GetWindowRect(topLevelHwnd, out NativeMethods.RECT rect))
+        {
+            parentRect = rect.ToRectangle();
+            parentOffset = new Point(bounds.X - parentRect.X, bounds.Y - parentRect.Y);
+        }
+
         if (_fields.TryGetValue(key, out TrackedField? existing))
         {
             existing.Bounds = bounds;
             existing.LastSeen = DateTime.UtcNow;
             existing.IsFocused = true;
             existing.Element = element;
+            existing.ParentOffset = parentOffset;
+            existing.LastParentRect = parentRect;
             return existing;
         }
 
@@ -45,7 +56,9 @@ sealed class FieldTracker
             TopLevelHwnd = topLevelHwnd,
             LastSeen = DateTime.UtcNow,
             IsFocused = true,
-            Element = element
+            Element = element,
+            ParentOffset = parentOffset,
+            LastParentRect = parentRect
         };
 
         _fields[key] = field;
@@ -205,6 +218,57 @@ sealed class FieldTracker
         return changed;
     }
 
+    /// <summary>
+    /// Fast-path bounds refresh using GetWindowRect instead of UIA.
+    /// Sub-millisecond per field vs 10-50ms for UIA BoundingRectangle.
+    /// Returns true if any bounds changed.
+    /// </summary>
+    public bool RefreshPersistentBoundsFast()
+    {
+        List<(int oldKey, TrackedField field, Rectangle newBounds)> toRekey = [];
+        bool changed = false;
+
+        foreach (var (key, field) in _fields)
+        {
+            if (field.IsFocused || field.LastParentRect == default)
+                continue;
+
+            if (!NativeMethods.GetWindowRect(field.TopLevelHwnd, out NativeMethods.RECT rect))
+                continue;
+
+            var currentParent = rect.ToRectangle();
+            if (currentParent == field.LastParentRect)
+                continue;
+
+            // Parent window moved/resized. Estimate new field position from stored offset.
+            var estimated = new Rectangle(
+                currentParent.X + field.ParentOffset.X,
+                currentParent.Y + field.ParentOffset.Y,
+                field.Bounds.Width, field.Bounds.Height);
+
+            if (estimated != field.Bounds)
+            {
+                int newKey = MakeKey(estimated, field.TopLevelHwnd);
+                if (newKey != key)
+                    toRekey.Add((key, field, estimated));
+                else
+                    field.Bounds = estimated;
+
+                field.LastParentRect = currentParent;
+                changed = true;
+            }
+        }
+
+        foreach (var (oldKey, field, newBounds) in toRekey)
+        {
+            _fields.Remove(oldKey);
+            field.Bounds = newBounds;
+            _fields[MakeKey(newBounds, field.TopLevelHwnd)] = field;
+        }
+
+        return changed;
+    }
+
     private static int MakeKey(Rectangle bounds, IntPtr hwnd)
     {
         return HashCode.Combine(
@@ -222,4 +286,10 @@ sealed class TrackedField
     public required DateTime LastSeen { get; set; }
     public bool IsFocused { get; set; }
     public AutomationElement? Element { get; set; }
+
+    /// <summary>Field position relative to parent window top-left. Set at Track() time.</summary>
+    public Point ParentOffset { get; set; }
+
+    /// <summary>Parent window rect when ParentOffset was last computed.</summary>
+    public Rectangle LastParentRect { get; set; }
 }
