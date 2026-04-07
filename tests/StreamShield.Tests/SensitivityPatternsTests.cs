@@ -308,4 +308,38 @@ public class SensitivityPatternsTests
 
         Assert.True(SensitivityPatterns.IsSensitiveField("SSN", null));
     }
+
+    // --- GetCategorizedKeywords ---
+
+    [Fact]
+    public void GetCategorizedKeywords_ReturnsAllCategories()
+    {
+        var keywords = SensitivityPatterns.GetCategorizedKeywords();
+        Assert.Equal(5, keywords.Count);
+        Assert.Contains(PatternCategory.Financial, keywords.Keys);
+        Assert.Contains(PatternCategory.Identity, keywords.Keys);
+        Assert.Contains(PatternCategory.Authentication, keywords.Keys);
+        Assert.Contains(PatternCategory.MfaOtp, keywords.Keys);
+        Assert.Contains(PatternCategory.Hebrew, keywords.Keys);
+    }
+
+    [Fact]
+    public void GetCategorizedKeywords_FinancialContainsExpectedKeywords()
+    {
+        var keywords = SensitivityPatterns.GetCategorizedKeywords();
+        var financial = keywords[PatternCategory.Financial];
+        Assert.Contains("card number", financial);
+        Assert.Contains("cvv", financial);
+        Assert.Contains("iban", financial);
+    }
+
+    [Fact]
+    public void GetCategorizedKeywords_CountMatchesBuiltInCount()
+    {
+        var keywords = SensitivityPatterns.GetCategorizedKeywords();
+        int total = 0;
+        foreach (var entry in keywords)
+            total += entry.Value.Count;
+        Assert.Equal(SensitivityPatterns.BuiltInCount, total);
+    }
 }

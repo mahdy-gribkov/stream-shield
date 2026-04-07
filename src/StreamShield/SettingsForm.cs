@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
@@ -15,6 +16,7 @@ sealed class SettingsForm : Form
     private readonly FieldTracker _fieldTracker;
     private readonly Action _onSettingsChanged;
     private readonly TabControl _tabs;
+    private readonly Timer _refreshTimer;
     private TextBox? _patternsBox;
 
     public SettingsForm(AppSettings settings, FieldTracker fieldTracker, Action onSettingsChanged)
@@ -24,7 +26,7 @@ sealed class SettingsForm : Form
         _onSettingsChanged = onSettingsChanged;
 
         Text = "StreamShield Settings";
-        Size = new Size(520, 480);
+        Size = new Size(520, 600);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -55,6 +57,10 @@ sealed class SettingsForm : Form
         }
 
         Controls.Add(_tabs);
+
+        _refreshTimer = new Timer { Interval = 2000 };
+        _refreshTimer.Start();
+        FormClosed += (_, _) => { _refreshTimer.Stop(); _refreshTimer.Dispose(); };
     }
 
     private TabPage BuildStatusTab()
@@ -76,6 +82,22 @@ sealed class SettingsForm : Form
             _settings.Save();
             _onSettingsChanged();
         };
+        y += Theme.RowHeight;
+
+        var startupCheck = new CheckBox
+        {
+            Text = "Run on Windows startup",
+            Checked = _settings.RunOnStartup,
+            Location = new Point(Theme.Margin, y),
+            AutoSize = true,
+            ForeColor = Theme.TextPrimary
+        };
+        startupCheck.CheckedChanged += (_, _) =>
+        {
+            _settings.RunOnStartup = startupCheck.Checked;
+            _settings.Save();
+            StartupHelper.SetStartup(startupCheck.Checked);
+        };
         y += Theme.RowHeight + 6;
 
         var fieldsLabel = new Label
@@ -84,18 +106,7 @@ sealed class SettingsForm : Form
             Location = new Point(Theme.Margin, y),
             AutoSize = true
         };
-        y += Theme.RowHeight - 6;
-
-        var refreshBtn = new Button
-        {
-            Text = "Refresh",
-            Location = new Point(Theme.Margin, y),
-            Size = new Size(100, Theme.RowHeight),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Theme.ButtonBg,
-            ForeColor = Color.White
-        };
-        refreshBtn.Click += (_, _) =>
+        _refreshTimer.Tick += (_, _) =>
         {
             fieldsLabel.Text = $"Currently tracking {_fieldTracker.Count} sensitive field(s)";
         };
@@ -122,7 +133,7 @@ sealed class SettingsForm : Form
         AddCategoryToggle(page, "Hebrew (\u05ea.\u05d6, \u05db\u05e8\u05d8\u05d9\u05e1 \u05d0\u05e9\u05e8\u05d0\u05d9, \u05e1\u05d9\u05e1\u05de\u05d4)",
             _settings.DetectHebrew, v => _settings.DetectHebrew = v, ref y);
 
-        page.Controls.AddRange([enabledCheck, fieldsLabel, refreshBtn]);
+        page.Controls.AddRange([enabledCheck, startupCheck, fieldsLabel]);
         return page;
     }
 
@@ -218,9 +229,45 @@ sealed class SettingsForm : Form
                 : $"Saved {lines.Length} custom pattern{(lines.Length == 1 ? "" : "s")}";
         };
 
-        page.Controls.AddRange([examplesLabel, _patternsBox, saveBtn, statusLabel]);
+        int treeY = btnY + Theme.RowHeight + Theme.SectionGap;
+        var builtInLabel = new Label
+        {
+            Text = "Built-in patterns (read-only):",
+            Location = new Point(Theme.Margin, treeY),
+            AutoSize = true,
+            Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold)
+        };
+        treeY += 24;
+
+        var treeView = new TreeView
+        {
+            Location = new Point(Theme.Margin, treeY),
+            Size = new Size(440, 180),
+            BackColor = Theme.InputBg,
+            ForeColor = Theme.TextPrimary,
+            BorderStyle = BorderStyle.FixedSingle,
+            ShowLines = true,
+            ShowPlusMinus = true
+        };
+
+        foreach (KeyValuePair<PatternCategory, IReadOnlyList<string>> entry
+            in SensitivityPatterns.GetCategorizedKeywords())
+        {
+            var root = new TreeNode($"{FormatCategoryName(entry.Key)} ({entry.Value.Count})");
+            foreach (string keyword in entry.Value)
+                root.Nodes.Add(keyword);
+            treeView.Nodes.Add(root);
+        }
+
+        page.Controls.AddRange([examplesLabel, _patternsBox, saveBtn, statusLabel, builtInLabel, treeView]);
         return page;
     }
+
+    private static string FormatCategoryName(PatternCategory category) => category switch
+    {
+        PatternCategory.MfaOtp => "MFA / OTP",
+        _ => System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1")
+    };
 
     private TabPage BuildAppearanceTab()
     {
@@ -347,7 +394,8 @@ sealed class SettingsForm : Form
                  + "Field values are displayed locally and never stored.\n\n"
                  + "MIT License",
             Location = new Point(20, 60),
-            Size = new Size(440, 160)
+            AutoSize = true,
+            MaximumSize = new Size(440, 0)
         };
 
         var linkLabel = new LinkLabel

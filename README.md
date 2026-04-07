@@ -42,6 +42,7 @@ Run it. A green circle appears in your system tray. That's it.
 
 - Double-click the tray icon to open Settings
 - Right-click for quick toggle and exit
+- Enable "Run on Windows startup" in Settings > Status to auto-launch on login
 - No .NET runtime needed (self-contained binary)
 - No admin/elevation required
 
@@ -84,7 +85,7 @@ See `linux/requirements.txt` for system package installation commands.
 | **Hebrew** | ת.ז. (national ID), תעודת זהות, כרטיס אשראי, סיסמה, קוד אבטחה, תוקף, מספר חשבון |
 | **Custom** | Any keywords you add in Settings > Patterns |
 
-Built-in Hebrew support. Add other languages via Settings > Patterns.
+131 built-in keywords across 5 categories. Browse the full list in Settings > Patterns (read-only TreeView). Add other languages or custom keywords via the same tab.
 
 Detection uses UI Automation properties (IsPassword, Name, AutomationId) combined with keyword matching against known sensitive field patterns.
 
@@ -95,8 +96,10 @@ Detection uses UI Automation properties (IsPassword, Name, AutomationId) combine
 - **Content mirror**: See what you type while the stream sees grey
 - **Multi-field persistence**: Previously filled fields stay covered after tabbing away
 - **Reveal-password fix**: Clicking the eye icon does not break protection
-- **20fps tracking**: Overlays follow fields during scroll and window movement
-- **Settings UI**: Dark-themed settings window with pattern editor, color customization, and padding control
+- **30fps tracking**: Overlays follow fields during scroll and window movement with sub-millisecond position estimation
+- **Browse built-in patterns**: View all 131 detection keywords organized by category in Settings > Patterns
+- **Run on startup**: Optional Windows startup integration (no admin required)
+- **Settings UI**: Dark-themed settings window with pattern editor, pattern viewer, color customization, and padding control
 - **Single instance**: Only one copy runs at a time
 - **Minimal footprint**: < 1% CPU active, < 30 MB memory idle
 

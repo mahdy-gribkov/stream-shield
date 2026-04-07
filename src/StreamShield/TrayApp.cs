@@ -49,6 +49,8 @@ sealed class TrayApp : ApplicationContext
         };
         _trayIcon.DoubleClick += (_, _) => ShowSettings();
 
+        StartupHelper.SetStartup(_settings.RunOnStartup);
+
         if (_settings.Enabled)
         {
             _focusMonitor.Start();

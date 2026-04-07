@@ -166,4 +166,22 @@ public class AppSettingsTests
     {
         Assert.Contains("StreamShield", AppSettings.LogFilePath);
     }
+
+    // --- RunOnStartup ---
+
+    [Fact]
+    public void Defaults_RunOnStartup_False()
+    {
+        var settings = new AppSettings();
+        Assert.False(settings.RunOnStartup);
+    }
+
+    [Fact]
+    public void RunOnStartup_RoundTrips()
+    {
+        var original = new AppSettings { RunOnStartup = true };
+        string json = JsonSerializer.Serialize(original);
+        var deserialized = JsonSerializer.Deserialize<AppSettings>(json)!;
+        Assert.True(deserialized.RunOnStartup);
+    }
 }

@@ -94,6 +94,14 @@ static class SensitivityPatterns
 
     public static int BuiltInCount => CategorizedKeywords.Values.Sum(v => v.Length);
 
+    public static IReadOnlyDictionary<PatternCategory, IReadOnlyList<string>> GetCategorizedKeywords()
+    {
+        var result = new Dictionary<PatternCategory, IReadOnlyList<string>>();
+        foreach (var (category, keywords) in CategorizedKeywords)
+            result[category] = Array.AsReadOnly(keywords);
+        return result;
+    }
+
     private static HashSet<PatternCategory> _activeCategories = [.. Enum.GetValues<PatternCategory>()];
     private static List<string>? _customPatterns;
 

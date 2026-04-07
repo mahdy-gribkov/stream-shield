@@ -320,6 +320,24 @@ windows: Windows App (.NET 10 / WinForms) {
       }
     }
 
+    viewer: Pattern Viewer (TreeView) {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${purple}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
+    startup: Startup (Registry HKCU) {
+      style: {
+        fill: "#1c1c30"
+        stroke: ${purple}
+        font-color: ${white}
+        font-size: 14
+      }
+    }
+
     json: settings.json {
       shape: page
       style: {
@@ -331,6 +349,15 @@ windows: Windows App (.NET 10 / WinForms) {
     }
 
     form -> json: save {
+      style: {
+        stroke: ${purple}
+        stroke-width: 2
+        font-size: 14
+        font-color: ${muted}
+      }
+    }
+
+    form -> startup: toggle {
       style: {
         stroke: ${purple}
         stroke-width: 2
