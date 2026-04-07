@@ -34,7 +34,7 @@ static class NativeMethods
         uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
         WinEventProc lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
     // --- Window Queries ---

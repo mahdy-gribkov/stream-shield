@@ -60,7 +60,16 @@ sealed class SettingsForm : Form
 
         _refreshTimer = new Timer { Interval = 2000 };
         _refreshTimer.Start();
-        FormClosed += (_, _) => { _refreshTimer.Stop(); _refreshTimer.Dispose(); };
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _refreshTimer.Stop();
+            _refreshTimer.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     private TabPage BuildStatusTab()
@@ -265,8 +274,12 @@ sealed class SettingsForm : Form
 
     private static string FormatCategoryName(PatternCategory category) => category switch
     {
+        PatternCategory.Financial => "Financial",
+        PatternCategory.Identity => "Identity",
+        PatternCategory.Authentication => "Authentication",
         PatternCategory.MfaOtp => "MFA / OTP",
-        _ => System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1")
+        PatternCategory.Hebrew => "Hebrew",
+        _ => category.ToString()
     };
 
     private TabPage BuildAppearanceTab()

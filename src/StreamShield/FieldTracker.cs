@@ -139,7 +139,11 @@ sealed class FieldTracker
         }
 
         foreach (int key in toRemove)
+        {
+            if (_fields.TryGetValue(key, out TrackedField? stale))
+                stale.Element = null;
             _fields.Remove(key);
+        }
 
         return removed;
     }
@@ -147,6 +151,8 @@ sealed class FieldTracker
     /// <summary>Clear all tracked fields.</summary>
     public void Clear()
     {
+        foreach (TrackedField field in _fields.Values)
+            field.Element = null;
         _fields.Clear();
         _currentTopLevelHwnd = IntPtr.Zero;
     }
