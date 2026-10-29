@@ -1,6 +1,8 @@
 # StreamShield
 
-[![CI](https://github.com/medy-gribkov/stream-shield/actions/workflows/ci.yml/badge.svg)](https://github.com/medy-gribkov/stream-shield/actions/workflows/ci.yml)
+Built by **Mahdy Lorens Gribkov** (מהדי לורנס גריבקוב) | [mahdygribkov.com](https://mahdygribkov.com) | [SporeSec](https://sporesec.com/en/mahdy-lorens-gribkov)
+
+[![CI](https://github.com/mahdy-gribkov/stream-shield/actions/workflows/ci.yml/badge.svg)](https://github.com/mahdy-gribkov/stream-shield/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%2B-blue.svg)]()
 [![Platform: Chrome](https://img.shields.io/badge/Platform-Chrome%20Extension-blue.svg)]()
@@ -36,7 +38,7 @@ The DWM compositor enforces `WDA_EXCLUDEFROMCAPTURE` at the hardware compositing
 
 ### Windows (Recommended)
 
-Download `StreamShield.exe` from [Releases](https://github.com/medy-gribkov/stream-shield/releases).
+Download `StreamShield.exe` from [Releases](https://github.com/mahdy-gribkov/stream-shield/releases).
 
 Run it. A green circle appears in your system tray. That's it.
 
@@ -187,4 +189,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions, code style, and P
 
 ## License
 
-[MIT](LICENSE) - Copyright 2026 medy gribkov
+[MIT](LICENSE) - Copyright 2026 Mahdy Lorens Gribkov
